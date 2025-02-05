@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online XSLT Editor | e-Fatura & e-İrsaliye Tasarım Aracı - XSLT Düzenleyici</title>
+    <meta name="description" content="Profesyonel XSLT editörü ile e-Fatura ve e-İrsaliye tasarımlarınızı online oluşturun. Gerçek zamanlı önizleme, çoklu dil desteği ve otomatik formatlama ile web tabanlı ücretsiz XSLT editörü.">
+    <meta name="keywords" content="xslt dizayn, online xslt editor, e-fatura tasarımı, e-irsaliye tasarımı, web xslt editör, xslt formatlama, xml dönüşüm aracı">
+    <link rel="canonical" href="https://xslt-editor.com" />
+    <meta property="og:title" content="Online XSLT Editor | e-Fatura & e-İrsaliye Tasarım Aracı">
+    <meta property="og:description" content="Web tabanlı profesyonel XSLT editörü ile fatura ve irsaliye tasarımlarınızı kolayca oluşturun.">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" media="print" onload="this.media='all'">
+    <link rel="preload" href="style.css" as="style" onload="this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="style.css"></noscript>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.2/ace.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.2/mode-xml.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.2/theme-dracula.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.2/theme-chrome.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.2/ext-language_tools.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.2/snippets/xml.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+    <script src="prettydiff.js" defer></script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Online XSLT Editor",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Web",
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.9",
+        "reviewCount": "157"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "TRY"
+      }
+    }
+    </script>
+</head>
+<body>
+
+<!-- Contact Modal -->
+<div id="contactModal" class="modal">
+  <div class="modal-content">
+    <span class="close">&times;</span>
+    <h2>İletişim Seçenekleri</h2>
+    <div class="contact-options">      
+      <a href="https://www.linkedin.com/in/m-mert-kayikci-48a5821b3" target="_blank" class="contact-link">
+        <i class="fab fa-linkedin"></i> LinkedIn
+      </a>
+      <a href="mailto:mert@kayikci.dev" class="contact-link">
+        <i class="fas fa-envelope"></i> E-Posta
+      </a>
+      <a href="https://github.com/mertkayikci/xslt-web-editor" target="_blank" class="contact-link">
+        <i class="fab fa-github"></i> GitHub
+      </a>
+    </div>
+  </div>
+</div>
+    <div id="welcome-popup" class="popup">
+        <div class="popup-content">
+            <h2 data-translation-key="title">XSLT Web Editörü</h2>
+            <div class="popup-buttons">
+                <button id="newFile" data-translation-key="newFile">Yeni XSLT Dosyası</button>
+                <button id="openFile" data-translation-key="openFile">XSLT Dosyası Seç</button>
+            </div>
+            <div class="popup-buttons" style="margin-top: 10px;">
+                <button id="parseFromXml" class="secondary-button" data-translation-key="parseFromXml">XML'den Dizayn Ayrıştır</button>
+            </div>
+            <div class="advanced-options">
+                <button id="toggleAdvanced" class="toggle-button" data-translation-key="advancedOptions">Gelişmiş Seçenekler</button>
+                <div id="advancedPanel" class="advanced-panel" style="display: none;">
+                    <div class="advanced-option">
+                        <button id="selectXmlData" data-translation-key="selectXmlData">XML Veri Dosyası Seç</button>
+                        <input type="file" id="xmlFileInput" accept=".xml" style="display: none;">
+                        <div id="selectedFileName" class="selected-file"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="signature-container">
+                <div class="signature" id="signature">
+                    M. MERT KAYIKCI
+                    <span class="subtitle" data-translation-key="codedWith">🤩 ile kodladı.</span>
+                    <span id="currentYear"></span>
+                </div>
+                <div class="emoji-particles"></div>
+                <div class="particles"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dil Seçici -->
+    <div class="language-selector">
+        <div class="language-options">
+            <div class="language-option" data-lang="tr">
+                <img src="https://flagcdn.com/48x36/tr.png" alt="Türkçe" class="flag-icon">
+                <span>TR</span>
+            </div>
+            <div class="language-option" data-lang="en">
+                <img src="https://flagcdn.com/48x36/gb.png" alt="English" class="flag-icon">
+                <span>EN</span>
+            </div>
+            <div class="language-option" data-lang="de">
+                <img src="https://flagcdn.com/48x36/de.png" alt="Deutsch" class="flag-icon">
+                <span>DE</span>
+            </div>
+            <div class="language-option" data-lang="ru">
+                <img src="https://flagcdn.com/48x36/ru.png" alt="Русский" class="flag-icon">
+                <span>RU</span>
+            </div>
+            <div class="language-option" data-lang="zh">
+                <img src="https://flagcdn.com/48x36/cn.png" alt="中文" class="flag-icon">
+                <span>CN</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container" style="display: none;">
+        <div class="toolbar">
+            <div class="menu-container">
+                <div class="menu-item">
+                    <span>Dosya</span>
+                    <div class="submenu">
+                        <div class="submenu-item" id="newMenuItem">Yeni</div>
+                        <div class="submenu-item" id="saveMenuItem">Kaydet</div>
+                    </div>
+                </div>
+                <div class="menu-item">
+                    <span>Görünüm</span>
+                    <div class="submenu">
+                        <label class="submenu-item checkbox-item">
+                            <input type="checkbox" id="realtimePreview">
+                            <span>Gerçek zamanlı önizleme</span>
+                        </label>
+                        <label class="submenu-item checkbox-item">
+                            <input type="checkbox" id="expandEditorCheckbox">
+                            <span>Kod editörünü büyüt</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="menu-item">
+                    <span>Araçlar</span>
+                    <div class="submenu">
+                        <div class="submenu-item" id="beautifyMenuItem">
+                            XSLT İyileştir
+                            <span class="beta-badge">beta</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="menu-item">
+                    <span>Bilgi</span>
+                    <div class="submenu">
+                        <div class="submenu-item" id="aboutMenuItem">Hakkında</div>
+                    </div>
+                </div>
+            </div>
+            <div class="menu-separator"></div>
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="Ara...">
+                <div class="search-results"></div>
+            </div>
+            <input type="file" id="fileInput" accept=".xslt,.xml" style="display: none;">
+        </div>
+        <div class="split-view">
+            <div class="preview-pane">
+                <div class="preview-overlay">
+                    <button id="updatePreview">Önizlemeyi Güncelle</button>
+                </div>
+                <iframe id="preview"></iframe>
+                <div id="error-message" class="error-message"></div>
+            </div>
+            <div class="resizer"></div>
+            <div class="editor-pane">
+                <div id="editor"></div>
+            </div>
+        </div>
+    </div>
+
+    <button id="themeToggle" class="theme-toggle">
+        <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0 .39-.39.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/>
+        </svg>
+        <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-3.03 0-5.5-2.47-5.5-5.5 0-1.82.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/>
+        </svg>
+    </button>
+
+    <div id="expandedEditorModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>XSLT Editör</span>
+                <button id="closeExpandedEditor">&times;</button>
+            </div>
+            <div id="expandedEditor"></div>
+        </div>
+    </div>
+
+    <div id="gotoLinePopup" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>Satıra Git</span>
+                <button id="closeGotoLinePopup">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="number" id="lineNumberInput" placeholder="Satır numarası" min="1" style="width: 100%; padding: 8px; margin-top: 10px;">
+                <button id="gotoLineBtn" style="margin-top: 10px; padding: 8px 16px;">Git</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="xmlDataPopup" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>XML Veri Seçimi</span>
+            </div>
+            <div class="modal-body">
+                <button id="defaultXmlData" class="popup-button">Varsayılan Veri Dosyası</button>
+                <button id="selectXmlData" class="popup-button">Veri Dosyası Seç</button>
+                <input type="file" id="xmlFileInput" accept=".xml" style="display: none;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Kaydet Modalı -->
+    <div id="saveFileModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>Dosyayı Kaydet</span>
+                <button id="closeSaveFileModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="saveFileName" placeholder="Dosya adı" style="width: 100%; padding: 8px; margin-top: 10px;">
+                <button id="confirmSaveFile" style="margin-top: 10px; padding: 8px 16px;">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hakkında Modalı -->
+    <div id="aboutModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>Hakkında</span>
+                <button id="closeAboutModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h2>XSLT Web Editor</h2>
+                <p>Sürüm 1.0</p>
+                <p>Bu uygulama, XSLT dosyalarını düzenlemek ve önizlemek için tasarlanmış web tabanlı bir editördür.</p>
+                <p>Özellikler:</p>
+                <ul>
+                    <li>Gerçek zamanlı XSLT önizleme</li>
+                    <li>Sözdizimi vurgulama</li>
+                    <li>Dosya kaydetme ve yükleme</li>
+                    <li>Arama ve gezinme</li>
+                    <li>Karanlık/Aydınlık tema desteği</li>
+                </ul>
+                <p style="margin-top: 20px;">© 2024 Tüm hakları saklıdır.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Yeni Dosya Onay Modalı -->
+    <div id="newFileModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>Yeni Dosya</span>
+                <button id="closeNewFileModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Yaptığınız değişiklikler kaybolacak. Devam etmek istiyor musunuz?</p>
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                    <button id="cancelNewFile" style="background: var(--bg-secondary);">Vazgeç</button>
+                    <button id="confirmNewFile" style="background: var(--accent-color);">Devam Et</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dil Seçim Modalı -->
+    <div id="languageModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>Dil Seçimi</span>
+                <button id="closeLanguageModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="language-options">
+                    <div class="language-option" data-lang="tr">
+                        <img src="https://flagcdn.com/48x36/tr.png" alt="Türkçe" class="flag-icon">
+                        <span>Türkçe</span>
+                    </div>
+                    <div class="language-option" data-lang="en">
+                        <img src="https://flagcdn.com/48x36/gb.png" alt="English" class="flag-icon">
+                        <span>English</span>
+                    </div>
+                    <div class="language-option" data-lang="de">
+                        <img src="https://flagcdn.com/48x36/de.png" alt="Deutsch" class="flag-icon">
+                        <span>Deutsch</span>
+                    </div>
+                    <div class="language-option" data-lang="ru">
+                        <img src="https://flagcdn.com/48x36/ru.png" alt="Русский" class="flag-icon">
+                        <span>Русский</span>
+                    </div>
+                    <div class="language-option" data-lang="zh">
+                        <img src="https://flagcdn.com/48x36/cn.png" alt="中文" class="flag-icon">
+                        <span>中文</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <img src="xslt-editor-screenshot.jpg" 
+         alt="Online XSLT Editör Arayüzü - e-Fatura Tasarım Ekranı" 
+         title="Web Tabanlı XSLT Editörü"
+         loading="lazy"
+         width="1200"
+         height="630">
+
+    <script src="script.js"></script>
+</body>
+</html>
