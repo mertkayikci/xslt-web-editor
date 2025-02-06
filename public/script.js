@@ -405,7 +405,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </xsl:stylesheet>`;
 
     // Başlangıçta varsayılan XML verisi yok. XML seçilmesi zorunludur.
-    // selectedXmlData = null;
+    selectedXmlData = `<?xml version="1.0" encoding="UTF-8"?> <!--#!DFLT_XML!#--> <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"	         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"	         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">	    <cbc:UBLVersionID>2.1</cbc:UBLVersionID>	    <cbc:CustomizationID>TR1.2</cbc:CustomizationID>	    <cbc:ProfileID>TESTFATURA</cbc:ProfileID>	    <cbc:ID>FTR20250001</cbc:ID>	    <cbc:IssueDate>2050-10-15</cbc:IssueDate>	    <cbc:InvoiceTypeCode>SATIS</cbc:InvoiceTypeCode>	    <cbc:DocumentCurrencyCode>TRY</cbc:DocumentCurrencyCode>	    <cbc:LineCountNumeric>1</cbc:LineCountNumeric>		    <!-- Gönderen Bilgileri -->	    <cac:AccountingSupplierParty>	        <cac:Party>	            <cbc:WebsiteURI>www.kayikci.dev</cbc:WebsiteURI>	            <cac:PartyIdentification>	                <cbc:ID schemeID="VKN">99999999999</cbc:ID>	            </cac:PartyIdentification>	            <cac:PartyName>	                <cbc:Name>XSLT Web Editor</cbc:Name>	            </cac:PartyName>	            <cac:PostalAddress>	                <cbc:StreetName>Örnek Sokak No: 123</cbc:StreetName>	                <cbc:CitySubdivisionName>Çankaya</cbc:CitySubdivisionName>	                <cbc:CityName>Ankara</cbc:CityName>	                <cbc:PostalZone>06100</cbc:PostalZone>	                <cac:Country>	                    <cbc:Name>Türkiye</cbc:Name>	                </cac:Country>	            </cac:PostalAddress>	        </cac:Party>	    </cac:AccountingSupplierParty>		    <!-- Alıcı Bilgileri -->	    <cac:AccountingCustomerParty>	        <cac:Party>	            <cac:PartyIdentification>	                <cbc:ID schemeID="TCKN">99999999999</cbc:ID>	            </cac:PartyIdentification>	            <cac:PartyName>	                <cbc:Name>Örnek Müşteri</cbc:Name>	            </cac:PartyName>	            <cac:PostalAddress>	                <cbc:StreetName>Diğer Sokak No: 456</cbc:StreetName>	                <cbc:CitySubdivisionName>Kadıköy</cbc:CitySubdivisionName>	                <cbc:CityName>İstanbul</cbc:CityName>	                <cbc:PostalZone>34700</cbc:PostalZone>	                <cac:Country>	                    <cbc:Name>Türkiye</cbc:Name>	                </cac:Country>	            </cac:PostalAddress>	        </cac:Party>	    </cac:AccountingCustomerParty>		    <!-- Fatura Kalemleri -->	    <cac:InvoiceLine>	        <cbc:ID>1</cbc:ID>	        <cbc:InvoicedQuantity unitCode="C62">10</cbc:InvoicedQuantity>	        <cbc:LineExtensionAmount currencyID="TRY">100.00</cbc:LineExtensionAmount>	        <cac:Item>	            <cbc:Name>XSLT Online Editor 😎</cbc:Name>	        </cac:Item>	        <cac:Price>	            <cbc:PriceAmount currencyID="TRY">10.00</cbc:PriceAmount>	        </cac:Price>	    </cac:InvoiceLine>		    <!-- Toplam Tutar -->	    <cac:LegalMonetaryTotal>	        <cbc:LineExtensionAmount currencyID="TRY">100.00</cbc:LineExtensionAmount>	        <cbc:TaxExclusiveAmount currencyID="TRY">100.00</cbc:TaxExclusiveAmount>	        <cbc:TaxInclusiveAmount currencyID="TRY">118.00</cbc:TaxInclusiveAmount>	        <cbc:PayableAmount currencyID="TRY">118.00</cbc:PayableAmount>	    </cac:LegalMonetaryTotal>	</Invoice>`;
 
     // Gelişmiş seçenekler paneli
     const toggleAdvanced = document.getElementById('toggleAdvanced');
@@ -1170,182 +1170,375 @@ document.addEventListener('DOMContentLoaded', function() {
     function convertToUBLFormat(xmlString) {
         try {
             const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(xmlString, "text/xml");
-            
-            // XML parse hatasını kontrol et
-            const parseError = xmlDoc.getElementsByTagName('parsererror');
-            if (parseError.length > 0) {
-                throw new Error('XML parse hatası: ' + parseError[0].textContent);
+            const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
+
+            // XML parse hatası kontrolü
+            if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+                throw new Error('XML ayrıştırma hatası');
             }
 
-            // MikroDocument kontrolü
-            if (xmlDoc.documentElement.tagName === "MikroDocument") {
-                const invoice = xmlDoc.querySelector("Invoice");
-                const despatchAdvice = xmlDoc.querySelector("DespatchAdvice");
+            // Belge formatı kontrolü
+            const rootElement = xmlDoc.documentElement;
+            
+            // Eğer belge zaten UBL-TR formatındaysa, doğrudan döndür
+            if (rootElement.nodeName === 'Invoice' || 
+                rootElement.nodeName === 'DespatchAdvice' || 
+                rootElement.nodeName === 'ReceiptAdvice') {
+                return xmlString;
+            }
+            
+            // MikroDocument formatı kontrolü
+            const mikroDoc = xmlDoc.getElementsByTagName('MikroDocument')[0];
+            if (!mikroDoc) {
+                throw new Error('Desteklenmeyen belge formatı: Belge UBL-TR veya MikroDocument formatında olmalıdır.');
+            }
+
+            // Fatura veya İrsaliye kontrolü
+            const invoice = xmlDoc.querySelector("Invoice");
+            const despatchAdvice = xmlDoc.querySelector("DespatchAdvice");
+            
+            if (!invoice && !despatchAdvice) {
+                throw new Error('Fatura veya İrsaliye bilgisi bulunamadı');
+            }
+
+            // Belge tipini belirle
+            const documentType = invoice ? "Invoice" : "DespatchAdvice";
+            const sourceDoc = invoice || despatchAdvice;
+
+            // Yeni UBL dokümanı oluştur
+            const ublDoc = document.implementation.createDocument(
+                `urn:oasis:names:specification:ubl:schema:xsd:${documentType}-2`,
+                documentType,
+                null
+            );
+            const root = ublDoc.documentElement;
+
+            // Namespace tanımlamaları
+            root.setAttribute("xmlns", `urn:oasis:names:specification:ubl:schema:xsd:${documentType}-2`);
+            root.setAttribute("xmlns:cac", "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2");
+            root.setAttribute("xmlns:cbc", "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2");
+            root.setAttribute("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
+            root.setAttribute("xmlns:ext", "urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2");
+
+            // Yardımcı fonksiyonlar
+            const createElement = (name, value = null, attributes = {}) => {
+                const [prefix, localName] = name.split(':');
+                const ns = prefix === 'cac' ? 
+                    "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" :
+                    prefix === 'cbc' ? 
+                        "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" :
+                        `urn:oasis:names:specification:ubl:schema:xsd:${documentType}-2`;
                 
-                if (!invoice && !despatchAdvice) {
-                    throw new Error('Fatura veya İrsaliye bilgisi bulunamadı');
-                }
+                const element = ublDoc.createElementNS(ns, name);
+                if (value !== null) element.textContent = value;
+                Object.entries(attributes).forEach(([key, val]) => {
+                    if (val !== null && val !== undefined) {
+                        element.setAttribute(key, val);
+                    }
+                });
+                return element;
+            };
 
-                // Belge tipini belirle
-                const documentType = invoice ? "Invoice" : "DespatchAdvice";
-                const sourceDoc = invoice || despatchAdvice;
+            const appendElement = (parent, name, value = null, attributes = {}) => {
+                const element = createElement(name, value, attributes);
+                parent.appendChild(element);
+                return element;
+            };
 
-                // Yeni UBL dokümanı oluştur
-                const ublDoc = document.implementation.createDocument(
-                    `urn:oasis:names:specification:ubl:schema:xsd:${documentType}-2`,
-                    documentType,
-                    null
+            const getElementValue = (element, selector) => {
+                const node = element.querySelector(selector);
+                return node ? node.textContent : null;
+            };
+
+            const getElementAttribute = (element, selector, attribute) => {
+                const node = element.querySelector(selector);
+                return node ? node.getAttribute(attribute) : null;
+            };
+
+            // Temel UBL elemanları
+            const coreElements = [
+                ["cbc:UBLVersionID", "2.1"],
+                ["cbc:CustomizationID", documentType === "Invoice" ? "TR1.2" : "TR1.0"],
+                ["cbc:ProfileID", getElementValue(sourceDoc, "ProfileID") || "TICARIFATURA"],
+                ["cbc:ID", getElementValue(sourceDoc, "TransactionSerial") + getElementValue(sourceDoc, "TransactionNumber")],
+                ["cbc:UUID", getElementValue(sourceDoc, "UUID")],
+                ["cbc:IssueDate", getElementValue(sourceDoc, "DocumentDate")],
+                ["cbc:IssueTime", getElementValue(sourceDoc, "DocumentTime")]
+            ];
+
+            if (documentType === "Invoice") {
+                coreElements.push(
+                    ["cbc:InvoiceTypeCode", getElementValue(sourceDoc, "InvoiceTypeCode")],
+                    ["cbc:DocumentCurrencyCode", getElementValue(sourceDoc, "DocumentCurrencyCode")]
                 );
-                const root = ublDoc.documentElement;
 
-                // Namespace tanımlamaları
-                root.setAttribute("xmlns", `urn:oasis:names:specification:ubl:schema:xsd:${documentType}-2`);
-                root.setAttribute("xmlns:cac", "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2");
-                root.setAttribute("xmlns:cbc", "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2");
-                root.setAttribute("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
-                root.setAttribute("xmlns:xsd", "http://www.w3.org/2001/XMLSchema");
+                // Not alanlarını ekle
+                const notes = sourceDoc.querySelectorAll("Note");
+                notes.forEach(note => {
+                    coreElements.push(["cbc:Note", note.textContent]);
+                });
+            } else {
+                coreElements.push(
+                    ["cbc:DespatchAdviceTypeCode", getElementValue(sourceDoc, "DespatchAdviceTypeCode")],
+                    ["cbc:CopyIndicator", getElementValue(sourceDoc, "CopyIndicator")]
+                );
+            }
 
-                // Yardımcı fonksiyonlar
-                const createElement = (name, value = null, attributes = {}) => {
-                    const [prefix, localName] = name.split(':');
-                    const ns = prefix === 'cac' ? 
-                        "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" :
-                        prefix === 'cbc' ? 
-                            "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" :
-                            `urn:oasis:names:specification:ubl:schema:xsd:${documentType}-2`;
-                    
-                    const element = ublDoc.createElementNS(ns, name);
-                    if (value !== null) element.textContent = value;
-                    Object.entries(attributes).forEach(([key, val]) => {
-                        if (val !== null && val !== undefined) {
-                            element.setAttribute(key, val);
-                        }
-                    });
-                    return element;
-                };
+            coreElements.push(["cbc:LineCountNumeric", getElementValue(sourceDoc, "LineCountNumeric")]);
 
-                const appendElement = (parent, name, value = null, attributes = {}) => {
-                    const element = createElement(name, value, attributes);
-                    parent.appendChild(element);
-                    return element;
-                };
+            coreElements.forEach(([name, value]) => {
+                if (value) appendElement(root, name, value);
+            });
 
-                const getElementValue = (element, selector) => {
-                    const node = element.querySelector(selector);
-                    return node ? node.textContent : null;
-                };
+            // Taraf bilgileri
+            const processParty = (partyElement, targetElementName) => {
+                if (!partyElement) return;
 
-                const getElementAttribute = (element, selector, attribute) => {
-                    const node = element.querySelector(selector);
-                    return node ? node.getAttribute(attribute) : null;
-                };
+                const party = partyElement.querySelector("Party");
+                if (!party) return;
 
-                // Temel UBL elemanları
-                const coreElements = [
-                    ["cbc:UBLVersionID", "2.1"],
-                    ["cbc:CustomizationID", documentType === "Invoice" ? "TR1.2" : "TR1.0"],
-                    ["cbc:ProfileID", getElementValue(sourceDoc, "ProfileID")],
-                    ["cbc:ID", getElementValue(sourceDoc, "TransactionSerial") || getElementValue(sourceDoc, "TransactionNumber")],
-                    ["cbc:UUID", getElementValue(sourceDoc, "UUID")],
-                    ["cbc:IssueDate", getElementValue(sourceDoc, "DocumentDate")],
-                    ["cbc:IssueTime", getElementValue(sourceDoc, "DocumentTime")]
-                ];
+                const targetParty = appendElement(root, targetElementName);
+                const partyElement2 = appendElement(targetParty, "cac:Party");
 
-                if (documentType === "Invoice") {
-                    coreElements.push(
-                        ["cbc:InvoiceTypeCode", getElementValue(sourceDoc, "InvoiceTypeCode")],
-                        ["cbc:DocumentCurrencyCode", getElementValue(sourceDoc, "DocumentCurrencyCode")]
-                    );
-                } else {
-                    coreElements.push(
-                        ["cbc:DespatchAdviceTypeCode", getElementValue(sourceDoc, "DespatchAdviceTypeCode")],
-                        ["cbc:CopyIndicator", getElementValue(sourceDoc, "CopyIndicator")]
-                    );
+                // WebsiteURI
+                const websiteUri = getElementValue(party, "WebsiteURI");
+                if (websiteUri) {
+                    appendElement(partyElement2, "cbc:WebsiteURI", websiteUri);
                 }
 
-                coreElements.push(["cbc:LineCountNumeric", getElementValue(sourceDoc, "LineCountNumeric")]);
-
-                coreElements.forEach(([name, value]) => {
-                    if (value) appendElement(root, name, value);
+                // PartyIdentification
+                const partyIdentifications = party.querySelectorAll("PartyIdentification");
+                partyIdentifications.forEach(identification => {
+                    const id = identification.querySelector("ID");
+                    if (id) {
+                        const partyIdentification = appendElement(partyElement2, "cac:PartyIdentification");
+                        appendElement(partyIdentification, "cbc:ID", id.textContent, {
+                            schemeID: id.getAttribute("schemeID")
+                        });
+                    }
                 });
 
-                // Taraf bilgileri
-                const processParty = (partyElement, targetElementName) => {
-                    if (!partyElement) return;
+                // PartyName
+                const partyName = getElementValue(party, "PartyName Name");
+                if (partyName) {
+                    const partyNameElement = appendElement(partyElement2, "cac:PartyName");
+                    appendElement(partyNameElement, "cbc:Name", partyName);
+                }
+
+                // PostalAddress
+                const postalAddress = party.querySelector("PostalAddress");
+                if (postalAddress) {
+                    const postalAddressElement = appendElement(partyElement2, "cac:PostalAddress");
                     
-                    const party = partyElement.querySelector("Party");
-                    if (!party) return;
+                    ["StreetName", "BuildingNumber", "CitySubdivisionName", "CityName", "PostalZone", "Region"].forEach(field => {
+                        const value = getElementValue(postalAddress, field);
+                        if (value) appendElement(postalAddressElement, `cbc:${field}`, value);
+                    });
 
-                    const targetParty = appendElement(root, targetElementName);
-                    const partyElement2 = appendElement(targetParty, "cac:Party");
-
-                    // WebsiteURI
-                    const websiteUri = getElementValue(party, "WebsiteURI");
-                    if (websiteUri) {
-                        appendElement(partyElement2, "cbc:WebsiteURI", websiteUri);
+                    const country = postalAddress.querySelector("Country");
+                    if (country) {
+                        const countryElement = appendElement(postalAddressElement, "cac:Country");
+                        appendElement(countryElement, "cbc:IdentificationCode", getElementValue(country, "IdentificationCode"));
+                        appendElement(countryElement, "cbc:Name", getElementValue(country, "Name"));
                     }
+                }
 
-                    // VKN
-                    const vkn = getElementValue(party, "PartyIdentification ID[schemeID='VKN']");
-                    if (vkn) {
-                        const partyIdentification = appendElement(partyElement2, "cac:PartyIdentification");
-                        appendElement(partyIdentification, "cbc:ID", vkn, { schemeID: "VKN" });
+                // PartyTaxScheme
+                const taxScheme = getElementValue(party, "PartyTaxScheme TaxScheme Name");
+                if (taxScheme) {
+                    const partyTaxScheme = appendElement(partyElement2, "cac:PartyTaxScheme");
+                    const taxSchemeElement = appendElement(partyTaxScheme, "cac:TaxScheme");
+                    appendElement(taxSchemeElement, "cbc:Name", taxScheme);
+                }
+
+                // Contact
+                const contact = party.querySelector("Contact");
+                if (contact) {
+                    const contactElement = appendElement(partyElement2, "cac:Contact");
+                    ["Telephone", "Telefax", "ElectronicMail"].forEach(field => {
+                        const value = getElementValue(contact, field);
+                        if (value) appendElement(contactElement, `cbc:${field}`, value);
+                    });
+                }
+            };
+
+            // Tarafları işle
+            if (documentType === "Invoice") {
+                processParty(sourceDoc.querySelector("AccountingSupplierParty"), "cac:AccountingSupplierParty");
+                processParty(sourceDoc.querySelector("AccountingCustomerParty"), "cac:AccountingCustomerParty");
+                processParty(sourceDoc.querySelector("BuyerCustomerParty"), "cac:BuyerCustomerParty");
+            } else {
+                processParty(sourceDoc.querySelector("DespatchSupplierParty"), "cac:DespatchSupplierParty");
+                processParty(sourceDoc.querySelector("DeliveryCustomerParty"), "cac:DeliveryCustomerParty");
+            }
+
+            // Teslimat bilgileri
+            const delivery = sourceDoc.querySelector("Delivery");
+            if (delivery) {
+                const deliveryElement = appendElement(root, "cac:Delivery");
+                
+                // Teslimat adresi
+                const deliveryAddress = delivery.querySelector("DeliveryAddress");
+                if (deliveryAddress) {
+                    const addressElement = appendElement(deliveryElement, "cac:DeliveryAddress");
+                    ["StreetName", "BuildingNumber", "CitySubdivisionName", "CityName", "PostalZone"].forEach(field => {
+                        const value = getElementValue(deliveryAddress, field);
+                        if (value) appendElement(addressElement, `cbc:${field}`, value);
+                    });
+
+                    const country = deliveryAddress.querySelector("Country");
+                    if (country) {
+                        const countryElement = appendElement(addressElement, "cac:Country");
+                        appendElement(countryElement, "cbc:IdentificationCode", getElementValue(country, "IdentificationCode"));
+                        appendElement(countryElement, "cbc:Name", getElementValue(country, "Name"));
                     }
+                }
+            }
 
-                    // Firma Adı
-                    const partyName = getElementValue(party, "PartyName Name");
-                    if (partyName) {
-                        const partyNameElement = appendElement(partyElement2, "cac:PartyName");
-                        appendElement(partyNameElement, "cbc:Name", partyName);
-                    }
+            // Döviz kuru bilgileri
+            const exchangeRate = sourceDoc.querySelector("PricingExchangeRate");
+            if (exchangeRate) {
+                const rateElement = appendElement(root, "cac:PricingExchangeRate");
+                appendElement(rateElement, "cbc:SourceCurrencyCode", getElementValue(exchangeRate, "SourceCurrencyCode"));
+                appendElement(rateElement, "cbc:TargetCurrencyCode", getElementValue(exchangeRate, "TargetCurrencyCode"));
+                appendElement(rateElement, "cbc:CalculationRate", getElementValue(exchangeRate, "CalculationRate"));
+            }
 
-                    // Adres
-                    const postalAddress = party.querySelector("PostalAddress");
-                    if (postalAddress) {
-                        const postalAddressElement = appendElement(partyElement2, "cac:PostalAddress");
+            if (documentType === "Invoice") {
+                // Vergi toplamları
+                const taxTotal = sourceDoc.querySelector("TaxTotal");
+                if (taxTotal) {
+                    const taxTotalElement = appendElement(root, "cac:TaxTotal");
+                    appendElement(taxTotalElement, "cbc:TaxAmount", 
+                        getElementValue(taxTotal, "TaxAmount"),
+                        { currencyID: getElementAttribute(taxTotal, "TaxAmount", "currencyID") }
+                    );
+
+                    // Vergi alt detayları
+                    const taxSubtotals = taxTotal.querySelectorAll("TaxSubtotal");
+                    taxSubtotals.forEach(subtotal => {
+                        const taxSubtotalElement = appendElement(taxTotalElement, "cac:TaxSubtotal");
                         
-                        ["StreetName", "BuildingNumber", "CitySubdivisionName", "CityName", "PostalZone"].forEach(field => {
-                            const value = getElementValue(postalAddress, field);
-                            if (value) appendElement(postalAddressElement, `cbc:${field}`, value);
+                        ["TaxableAmount", "TaxAmount"].forEach(field => {
+                            appendElement(taxSubtotalElement, `cbc:${field}`,
+                                getElementValue(subtotal, field),
+                                { currencyID: getElementAttribute(subtotal, field, "currencyID") }
+                            );
                         });
 
-                        const country = postalAddress.querySelector("Country");
-                        if (country) {
-                            const countryElement = appendElement(postalAddressElement, "cac:Country");
-                            appendElement(countryElement, "cbc:IdentificationCode", getElementValue(country, "IdentificationCode"));
-                            appendElement(countryElement, "cbc:Name", getElementValue(country, "Name"));
+                        appendElement(taxSubtotalElement, "cbc:Percent", getElementValue(subtotal, "Percent"));
+
+                        const taxCategory = appendElement(taxSubtotalElement, "cac:TaxCategory");
+                        
+                        // Vergi muafiyet kodları
+                        const exemptionReasonCode = getElementValue(subtotal, "TaxCategory TaxExemptionReasonCode");
+                        const exemptionReason = getElementValue(subtotal, "TaxCategory TaxExemptionReason");
+                        
+                        if (exemptionReasonCode) {
+                            appendElement(taxCategory, "cbc:TaxExemptionReasonCode", exemptionReasonCode);
+                        }
+                        if (exemptionReason) {
+                            appendElement(taxCategory, "cbc:TaxExemptionReason", exemptionReason);
+                        }
+
+                        const taxScheme = appendElement(taxCategory, "cac:TaxScheme");
+                        appendElement(taxScheme, "cbc:Name", getElementValue(subtotal, "TaxCategory TaxScheme Name"));
+                        appendElement(taxScheme, "cbc:TaxTypeCode", getElementValue(subtotal, "TaxCategory TaxScheme TaxTypeCode"));
+                    });
+                }
+
+                // Parasal toplamlar
+                const monetaryTotal = sourceDoc.querySelector("LegalMonetaryTotal");
+                if (monetaryTotal) {
+                    const monetaryTotalElement = appendElement(root, "cac:LegalMonetaryTotal");
+                    
+                    [
+                        "LineExtensionAmount",
+                        "TaxExclusiveAmount",
+                        "TaxInclusiveAmount",
+                        "AllowanceTotalAmount",
+                        "ChargeTotalAmount",
+                        "PayableRoundingAmount",
+                        "PayableAmount"
+                    ].forEach(field => {
+                        const value = getElementValue(monetaryTotal, field);
+                        const currencyID = getElementAttribute(monetaryTotal, field, "currencyID");
+                        if (value) {
+                            appendElement(monetaryTotalElement, `cbc:${field}`, value, { currencyID });
+                        }
+                    });
+                }
+
+                // Fatura satırları
+                sourceDoc.querySelectorAll("InvoiceLine").forEach(line => {
+                    const invoiceLine = appendElement(root, "cac:InvoiceLine");
+                    
+                    // Temel satır bilgileri
+                    appendElement(invoiceLine, "cbc:ID", getElementValue(line, "ID"));
+                    
+                    const quantity = line.querySelector("InvoicedQuantity");
+                    if (quantity) {
+                        appendElement(invoiceLine, "cbc:InvoicedQuantity",
+                            quantity.textContent,
+                            { unitCode: quantity.getAttribute("unitCode") }
+                        );
+                    }
+
+                    const lineExtensionAmount = line.querySelector("LineExtensionAmount");
+                    if (lineExtensionAmount) {
+                        appendElement(invoiceLine, "cbc:LineExtensionAmount",
+                            lineExtensionAmount.textContent,
+                            { currencyID: lineExtensionAmount.getAttribute("currencyID") }
+                        );
+                    }
+
+                    // Teslimat bilgileri
+                    const delivery = line.querySelector("Delivery");
+                    if (delivery) {
+                        const deliveryElement = appendElement(invoiceLine, "cac:Delivery");
+                        
+                        // Teslimat şartları
+                        const deliveryTerms = delivery.querySelector("DeliveryTerms");
+                        if (deliveryTerms) {
+                            const termsElement = appendElement(deliveryElement, "cac:DeliveryTerms");
+                            const id = deliveryTerms.querySelector("ID");
+                            if (id) {
+                                appendElement(termsElement, "cbc:ID", id.textContent, {
+                                    schemeID: id.getAttribute("schemeID")
+                                });
+                            }
+                        }
+
+                        // Sevkiyat bilgileri
+                        const shipment = delivery.querySelector("Shipment");
+                        if (shipment) {
+                            const shipmentElement = appendElement(deliveryElement, "cac:Shipment");
+                            
+                            // GTIP kodu
+                            const goodsItem = shipment.querySelector("GoodsItem");
+                            if (goodsItem) {
+                                const goodsItemElement = appendElement(shipmentElement, "cac:GoodsItem");
+                                appendElement(goodsItemElement, "cbc:RequiredCustomsID", 
+                                    getElementValue(goodsItem, "RequiredCustomsID")
+                                );
+                            }
+
+                            // Taşıma modu
+                            const shipmentStage = shipment.querySelector("ShipmentStage");
+                            if (shipmentStage) {
+                                const stageElement = appendElement(shipmentElement, "cac:ShipmentStage");
+                                appendElement(stageElement, "cbc:TransportModeCode", 
+                                    getElementValue(shipmentStage, "TransportModeCode")
+                                );
+                            }
                         }
                     }
 
-                    // Vergi Dairesi
-                    const taxScheme = getElementValue(party, "PartyTaxScheme TaxScheme Name");
-                    if (taxScheme) {
-                        const partyTaxScheme = appendElement(partyElement2, "cac:PartyTaxScheme");
-                        const taxSchemeElement = appendElement(partyTaxScheme, "cac:TaxScheme");
-                        appendElement(taxSchemeElement, "cbc:Name", taxScheme);
-                    }
-
-                    // İletişim Bilgileri
-                    const contact = party.querySelector("Contact");
-                    if (contact) {
-                        const contactElement = appendElement(partyElement2, "cac:Contact");
-                        appendElement(contactElement, "cbc:Telephone", getElementValue(contact, "Telephone"));
-                        appendElement(contactElement, "cbc:Telefax", getElementValue(contact, "Telefax"));
-                        appendElement(contactElement, "cbc:ElectronicMail", getElementValue(contact, "ElectronicMail"));
-                    }
-                };
-
-                if (documentType === "Invoice") {
-                    // Fatura tarafları
-                    processParty(sourceDoc.querySelector("AccountingSupplierParty"), "cac:AccountingSupplierParty");
-                    processParty(sourceDoc.querySelector("AccountingCustomerParty"), "cac:AccountingCustomerParty");
-
-                    // Vergi ve parasal toplamlar
-                    const taxTotal = sourceDoc.querySelector("TaxTotal");
+                    // Vergi bilgileri
+                    const taxTotal = line.querySelector("TaxTotal");
                     if (taxTotal) {
-                        const taxTotalElement = appendElement(root, "cac:TaxTotal");
-                        appendElement(taxTotalElement, "cbc:TaxAmount", 
+                        const taxTotalElement = appendElement(invoiceLine, "cac:TaxTotal");
+                        appendElement(taxTotalElement, "cbc:TaxAmount",
                             getElementValue(taxTotal, "TaxAmount"),
                             { currencyID: getElementAttribute(taxTotal, "TaxAmount", "currencyID") }
                         );
@@ -1354,16 +1547,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (taxSubtotal) {
                             const taxSubtotalElement = appendElement(taxTotalElement, "cac:TaxSubtotal");
                             
-                            appendElement(taxSubtotalElement, "cbc:TaxableAmount",
-                                getElementValue(taxSubtotal, "TaxableAmount"),
-                                { currencyID: getElementAttribute(taxSubtotal, "TaxableAmount", "currencyID") }
-                            );
-                            
-                            appendElement(taxSubtotalElement, "cbc:TaxAmount",
-                                getElementValue(taxSubtotal, "TaxAmount"),
-                                { currencyID: getElementAttribute(taxSubtotal, "TaxAmount", "currencyID") }
-                            );
-                            
+                            ["TaxableAmount", "TaxAmount"].forEach(field => {
+                                appendElement(taxSubtotalElement, `cbc:${field}`,
+                                    getElementValue(taxSubtotal, field),
+                                    { currencyID: getElementAttribute(taxSubtotal, field, "currencyID") }
+                                );
+                            });
+
                             appendElement(taxSubtotalElement, "cbc:Percent", getElementValue(taxSubtotal, "Percent"));
 
                             const taxCategory = appendElement(taxSubtotalElement, "cac:TaxCategory");
@@ -1373,174 +1563,46 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
 
-                    // Parasal toplamlar
-                    const monetaryTotal = sourceDoc.querySelector("LegalMonetaryTotal");
-                    if (monetaryTotal) {
-                        const monetaryTotalElement = appendElement(root, "cac:LegalMonetaryTotal");
-                        
-                        [
-                            "LineExtensionAmount",
-                            "TaxExclusiveAmount",
-                            "TaxInclusiveAmount",
-                            "AllowanceTotalAmount",
-                            "PayableAmount"
-                        ].forEach(field => {
-                            const value = getElementValue(monetaryTotal, field);
-                            const currencyID = getElementAttribute(monetaryTotal, field, "currencyID");
-                            if (value) {
-                                appendElement(monetaryTotalElement, `cbc:${field}`, value, { currencyID });
+                    // Ürün bilgileri
+                    const item = line.querySelector("Item");
+                    if (item) {
+                        const itemElement = appendElement(invoiceLine, "cac:Item");
+                        appendElement(itemElement, "cbc:Description", getElementValue(item, "Description"));
+                        appendElement(itemElement, "cbc:Name", getElementValue(item, "Name"));
+
+                        // Alıcı ve satıcı ürün kodları
+                        ["Buyers", "Sellers"].forEach(type => {
+                            const identification = item.querySelector(`${type}ItemIdentification`);
+                            if (identification) {
+                                const identificationElement = appendElement(itemElement, `cac:${type}ItemIdentification`);
+                                appendElement(identificationElement, "cbc:ID", getElementValue(identification, "ID"));
                             }
                         });
-                    }
 
-                    // Fatura satırları
-                    sourceDoc.querySelectorAll("InvoiceLine").forEach(line => {
-                        const invoiceLine = appendElement(root, "cac:InvoiceLine");
-                        
-                        appendElement(invoiceLine, "cbc:ID", getElementValue(line, "ID"));
-                        
-                        const quantity = line.querySelector("InvoicedQuantity");
-                        if (quantity) {
-                            appendElement(invoiceLine, "cbc:InvoicedQuantity",
-                                quantity.textContent,
-                                { unitCode: quantity.getAttribute("unitCode") }
-                            );
-                        }
-
-                        const lineExtensionAmount = line.querySelector("LineExtensionAmount");
-                        if (lineExtensionAmount) {
-                            appendElement(invoiceLine, "cbc:LineExtensionAmount",
-                                lineExtensionAmount.textContent,
-                                { currencyID: lineExtensionAmount.getAttribute("currencyID") }
-                            );
-                        }
-
-                        // Vergi bilgileri
-                        const taxTotal = line.querySelector("TaxTotal");
-                        if (taxTotal) {
-                            const taxTotalElement = appendElement(invoiceLine, "cac:TaxTotal");
-                            appendElement(taxTotalElement, "cbc:TaxAmount",
-                                getElementValue(taxTotal, "TaxAmount"),
-                                { currencyID: getElementAttribute(taxTotal, "TaxAmount", "currencyID") }
-                            );
-                        }
-
-                        // Ürün bilgileri
-                        const item = line.querySelector("Item");
-                        if (item) {
-                            const itemElement = appendElement(invoiceLine, "cac:Item");
-                            appendElement(itemElement, "cbc:Name", getElementValue(item, "Name"));
-                        }
-
-                        // Fiyat bilgileri
-                        const price = line.querySelector("Price");
-                        if (price) {
-                            const priceElement = appendElement(invoiceLine, "cac:Price");
-                            appendElement(priceElement, "cbc:PriceAmount",
-                                getElementValue(price, "PriceAmount"),
-                                { currencyID: getElementAttribute(price, "PriceAmount", "currencyID") }
-                            );
-                        }
-                    });
-                } else {
-                    // İrsaliye tarafları
-                    processParty(sourceDoc.querySelector("DespatchSupplierParty"), "cac:DespatchSupplierParty");
-                    processParty(sourceDoc.querySelector("DeliveryCustomerParty"), "cac:DeliveryCustomerParty");
-
-                    // Sevkiyat bilgileri
-                    const shipment = sourceDoc.querySelector("Shipment");
-                    if (shipment) {
-                        const shipmentElement = appendElement(root, "cac:Shipment");
-                        appendElement(shipmentElement, "cbc:ID", getElementValue(shipment, "ID"));
-
-                        const goodsItem = shipment.querySelector("GoodsItem");
-                        if (goodsItem) {
-                            const goodsItemElement = appendElement(shipmentElement, "cac:GoodsItem");
-                            const valueAmount = goodsItem.querySelector("ValueAmount");
-                            if (valueAmount) {
-                                appendElement(goodsItemElement, "cbc:ValueAmount",
-                                    valueAmount.textContent,
-                                    { currencyID: valueAmount.getAttribute("currencyID") }
-                                );
-                            }
-                        }
-
-                        const delivery = shipment.querySelector("Delivery");
-                        if (delivery) {
-                            const deliveryElement = appendElement(shipmentElement, "cac:Delivery");
-                            appendElement(deliveryElement, "cbc:ActualDeliveryDate", getElementValue(delivery, "ActualDeliveryDate"));
-                            appendElement(deliveryElement, "cbc:ActualDeliveryTime", getElementValue(delivery, "ActualDeliveryTime"));
-
-                            const deliveryAddress = delivery.querySelector("DeliveryAddress");
-                            if (deliveryAddress) {
-                                const addressElement = appendElement(deliveryElement, "cac:DeliveryAddress");
-                                ["StreetName", "CitySubdivisionName", "CityName"].forEach(field => {
-                                    const value = getElementValue(deliveryAddress, field);
-                                    if (value) appendElement(addressElement, `cbc:${field}`, value);
-                                });
-
-                                const country = deliveryAddress.querySelector("Country");
-                                if (country) {
-                                    const countryElement = appendElement(addressElement, "cac:Country");
-                                    appendElement(countryElement, "cbc:IdentificationCode", getElementValue(country, "IdentificationCode"));
-                                    appendElement(countryElement, "cbc:Name", getElementValue(country, "Name"));
-                                }
-                            }
-
-                            const despatch = delivery.querySelector("Despatch");
-                            if (despatch) {
-                                const despatchElement = appendElement(deliveryElement, "cac:Despatch");
-                                appendElement(despatchElement, "cbc:ActualDespatchDate", getElementValue(despatch, "ActualDespatchDate"));
-                                appendElement(despatchElement, "cbc:ActualDespatchTime", getElementValue(despatch, "ActualDespatchTime"));
-                            }
+                        // Menşei ülke bilgisi
+                        const originCountry = item.querySelector("OriginCountry");
+                        if (originCountry) {
+                            const originCountryElement = appendElement(itemElement, "cac:OriginCountry");
+                            appendElement(originCountryElement, "cbc:IdentificationCode", getElementValue(originCountry, "IdentificationCode"));
+                            appendElement(originCountryElement, "cbc:Name", getElementValue(originCountry, "Name"));
                         }
                     }
 
-                    // İrsaliye satırları
-                    sourceDoc.querySelectorAll("DespatchLine").forEach(line => {
-                        const despatchLine = appendElement(root, "cac:DespatchLine");
-                        
-                        appendElement(despatchLine, "cbc:ID", getElementValue(line, "ID"));
-                        
-                        const quantity = line.querySelector("DeliveredQuantity");
-                        if (quantity) {
-                            appendElement(despatchLine, "cbc:DeliveredQuantity",
-                                quantity.textContent,
-                                { unitCode: quantity.getAttribute("unitCode") }
-                            );
-                        }
-
-                        const orderLineReference = line.querySelector("OrderLineReference");
-                        if (orderLineReference) {
-                            const orderLineRefElement = appendElement(despatchLine, "cac:OrderLineReference");
-                            appendElement(orderLineRefElement, "cbc:LineID", getElementValue(orderLineReference, "LineID"));
-                        }
-
-                        const item = line.querySelector("Item");
-                        if (item) {
-                            const itemElement = appendElement(despatchLine, "cac:Item");
-                            appendElement(itemElement, "cbc:Name", getElementValue(item, "Name"));
-                            appendElement(itemElement, "cbc:Description", getElementValue(item, "Description"));
-                            
-                            const sellersItemId = item.querySelector("SellersItemIdentification ID");
-                            if (sellersItemId) {
-                                const sellersItemIdElement = appendElement(itemElement, "cac:SellersItemIdentification");
-                                appendElement(sellersItemIdElement, "cbc:ID", sellersItemId.textContent);
-                            }
-                        }
-                    });
-                }
-
-                // XML'i stringe dönüştür
-                const serializer = new XMLSerializer();
-                const resultXml = '<?xml version="1.0" encoding="UTF-8"?>\n' + serializer.serializeToString(root);
-                console.log('Dönüştürülen UBL XML:', resultXml);
-                return resultXml;
-                
-            } else {
-                return xmlString;
+                    // Fiyat bilgileri
+                    const price = line.querySelector("Price");
+                    if (price) {
+                        const priceElement = appendElement(invoiceLine, "cac:Price");
+                        appendElement(priceElement, "cbc:PriceAmount",
+                            getElementValue(price, "PriceAmount"),
+                            { currencyID: getElementAttribute(price, "PriceAmount", "currencyID") }
+                        );
+                    }
+                });
             }
-            
+
+            // XML'i stringe dönüştür
+            const serializer = new XMLSerializer();
+            return serializer.serializeToString(root);
         } catch (error) {
             console.error('XML dönüşüm hatası:', error);
             throw error;
@@ -2390,7 +2452,7 @@ document.addEventListener('DOMContentLoaded', function() {
             hideWelcomePopup();
 
             // Eğer hiç XML veri dosyası SEÇİLMEMİŞSE veya DEFAULT değer kullanılıyorsa
-            if (selectedXmlData === null || selectedXmlData === undefined || selectedXmlData === '') {
+            if (selectedXmlData === null || selectedXmlData === undefined || selectedXmlData === '' || selectedXmlData.includes('<!--#!DFLT_XML!#-->')) {
                 const reader = new FileReader();
                 reader.onload = (file) => {
                     selectedXmlData = file.target.result;
